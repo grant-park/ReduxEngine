@@ -1,70 +1,49 @@
 package ai.grant.reduxengine
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ConflatedBroadcastChannel
-import kotlinx.coroutines.launch
-
-typealias Epic = (Action, State) -> ArrayList<Action>
-
-typealias Reducer = (State, Action) -> State
+import java.lang.Exception
 
 interface State
-
 interface Action
-
 object NoOpAction : Action
+typealias Epic = (Action, State) -> List<Action>
+typealias Reducer = (State, Action) -> State
 
 interface Store {
     val stateChanges: ConflatedBroadcastChannel<State>
-
     fun dispatch(action: Action)
-
-    fun addReducer(reducer: Reducer)
-
-    fun addEpic(epic: Epic)
 }
 
-class ReduxEngine(private val firstState: State) : Store {
-
-    private val reducers = ArrayList<Reducer>()
-
-    private val epics = ArrayList<Epic>()
-
-    override val stateChanges: ConflatedBroadcastChannel<State> =
-        ConflatedBroadcastChannel(firstState)
-
+class ReduxEngine(
+    override val stateChanges: ConflatedBroadcastChannel<State>,
+    private val reducer: Reducer,
+    private val epic: Epic
+) : Store, CoroutineScope by MainScope() {
     override fun dispatch(action: Action) {
-        var currentState: State? = null
-        MainScope().launch {
-            val updatedState = reducers.foldRight(firstState) { reducer, state ->
-                reducer(state, action)
-            }
-            currentState = updatedState
-            stateChanges.send(updatedState)
-        }.invokeOnCompletion { throwable ->
-            if (throwable == null) {
-                CoroutineScope(Dispatchers.IO).launch {
-                    if (action !is NoOpAction) {
-                        epics.forEach { epic ->
-                            epic(action, currentState!!).forEach { action ->
-                                dispatch(action)
+        if (action !is NoOpAction) {
+            launch {
+                stateChanges.send(
+                    reducer(stateChanges.value, action)
+                )
+            }.invokeOnCompletion { throwable ->
+                if (throwable == null) {
+                    launch {
+                        try {
+                            withContext(Dispatchers.IO) {
+                                epic(action, stateChanges.value)
+                            }.forEach {
+                                dispatch(it)
                             }
+                        } catch (exception: Exception) {
+                            throw Exception("Epic exception")
                         }
                     }
+                } else {
+                    throw Exception("Reducer exception")
                 }
-            } else {
-                throw throwable
             }
         }
     }
-
-    override fun addReducer(reducer: Reducer) {
-        reducers.add(reducer)
-    }
-
-    override fun addEpic(epic: Epic) {
-        epics.add(epic)
-    }
 }
+

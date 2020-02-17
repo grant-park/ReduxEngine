@@ -1,19 +1,15 @@
 package ai.grant.reduxengine
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.channels.ConflatedBroadcastChannel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runBlockingTest
 import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
-import kotlin.test.assertEquals
 
 class ReduxEngineTest {
 
@@ -31,38 +27,15 @@ class ReduxEngineTest {
     }
 
     @Test
-    fun `No reducers or epics`() {
-        // Pre-conditions
-        val firstState = object : State {}
-        val subject = ReduxEngine(firstState)
-
-        // Execution
-        subject.dispatch(object : Action {})
-    }
-
-    @Test
-    fun `Reducers run before epics`() = runBlockingTest {
-        // Pre-conditions
-        val firstState = object : State {}
-        val subject = ReduxEngine(firstState)
-        val history = ArrayList<State>()
-        val job = launch {
-            subject.stateChanges.asFlow().collect { state ->
-                history.add(state)
-            }
-        }
-        subject.addEpic { action, state ->
-            arrayListOf(action)
-        }
-        subject.addReducer { state, action ->
+    fun test() {
+        val reducer: Reducer = { state, action ->
             state
         }
-
-        // Execution
-        subject.dispatch(object : Action {})
-        job.cancel()
-
-        // Post-conditions
-        assertEquals(history.size, 2)
+        val epic: Epic = { action, state ->
+            listOf(NoOpAction)
+        }
+        val action: Action = object : Action {}
+        val subject = ReduxEngine(ConflatedBroadcastChannel(), reducer, epic)
+        subject.dispatch(action)
     }
 }
