@@ -34,8 +34,11 @@ class ReduxEngineTest {
         val epic: Epic = { action, state ->
             listOf(NoOpAction)
         }
+        val middleware: Middleware = { action ->
+            // do nothing
+        }
         val action: Action = object : Action {}
-        val subject = ReduxEngine(ConflatedBroadcastChannel(), reducer, epic)
+        val subject = ReduxEngine(ConflatedBroadcastChannel(), reducer, epic, middleware)
         subject.dispatch(action)
     }
 }
