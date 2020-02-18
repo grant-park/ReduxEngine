@@ -35,21 +35,11 @@ class ReduxEngine(
             }.invokeOnCompletion { throwable ->
                 if (throwable == null) {
                     launch {
-                        try {
-                            withContext(Dispatchers.IO) {
-                                epic(action, stateChanges.value)
-                            }.forEach {
-                                dispatch(it)
-                            }
-                        } catch (exception: Exception) {
-                            throw Exception("Epic exception")
-                        }
-                        try {
-                            withContext(Dispatchers.IO) {
-                                middleware(action)
-                            }
-                        } catch (exception: Exception) {
-                            throw Exception("Middleware exception")
+                        withContext(Dispatchers.IO) {
+                            middleware(action)
+                            epic(action, stateChanges.value)
+                        }.forEach {
+                            dispatch(it)
                         }
                     }
                 } else {
