@@ -14,14 +14,11 @@ class InstrumentedReduxEngineTest {
             state
         }
         val epic: Epic = { action, state ->
-            listOf(NoOpAction)
-        }
-        val middleware: Middleware = { action ->
-            // do nothing
+            listOf(NoOpAction).stream()
         }
         val action: Action = object : Action {}
         val initialState = object: State {}
-        val subject = ReduxEngine(channel, reducer, epic, middleware)
+        val subject = ReduxEngine(channel, reducer, epic)
         MainScope().launch {
             channel.send(initialState)
         }
