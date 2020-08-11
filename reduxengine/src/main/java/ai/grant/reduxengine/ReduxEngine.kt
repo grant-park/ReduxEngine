@@ -1,10 +1,15 @@
 package ai.grant.reduxengine
 
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.ObsoleteCoroutinesApi
 import kotlinx.coroutines.channels.ConflatedBroadcastChannel
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
 interface State
@@ -58,10 +63,10 @@ class ReduxEngine<S : State>(
                 reducer.reduce(action, stateChanges.value)
             )
         }.invokeOnCompletion { throwable ->
-            throwable?.let { throw it }
+            throwable?.let { throw it } // unit test exceptions from reducer
             launch {
                 withContext(ioDispatcher) {
-                    epic.map(action, stateChanges.value)
+                    epic.map(action, stateChanges.value) // unit test exceptions from epic
                 }.collect {
                     dispatch(it)
                 }
