@@ -5,6 +5,7 @@ import kotlinx.coroutines.channels.ConflatedBroadcastChannel
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
+import kotlin.coroutines.CoroutineContext
 
 interface State
 interface Action
@@ -25,7 +26,11 @@ class ReduxEngine<S : State>(
     private val epic: Epic<S>,
     private val mainDispatcher: CoroutineDispatcher,
     private val ioDispatcher: CoroutineDispatcher
-) : Store<S>, CoroutineScope by MainScope() {
+) : Store<S>, CoroutineScope {
+
+    override val coroutineContext: CoroutineContext
+        get() = mainDispatcher
+
     fun warmUp(initialState: S) {
         launch(mainDispatcher) {
             stateChanges.send(initialState)
