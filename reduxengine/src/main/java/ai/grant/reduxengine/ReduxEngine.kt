@@ -3,7 +3,6 @@ package ai.grant.reduxengine
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.ObsoleteCoroutinesApi
 import kotlinx.coroutines.channels.ConflatedBroadcastChannel
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.Flow
@@ -49,10 +48,9 @@ class ReduxEngine<S : State>(
         }
     }
 
-    @ObsoleteCoroutinesApi
     fun listen(action: (S) -> Unit) {
         launch {
-            stateChanges.consumeEach(action)
+            stateChanges.openSubscription().consumeEach(action) // unit test that most recent item is emitted
         }
     }
 
@@ -65,7 +63,7 @@ class ReduxEngine<S : State>(
         }.invokeOnCompletion { throwable ->
             throwable?.let { throw it } // unit test exceptions from reducer
             launch {
-                withContext(ioDispatcher) {
+                withContext(ioDispatcher) { // unit test that correct thread is used
                     epic.map(action, stateChanges.value) // unit test exceptions from epic
                 }.collect {
                     dispatch(it)

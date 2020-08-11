@@ -5,7 +5,6 @@ import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.ObsoleteCoroutinesApi
 import kotlinx.coroutines.channels.ConflatedBroadcastChannel
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.Flow
@@ -22,7 +21,6 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 
 @ExperimentalCoroutinesApi
-@ObsoleteCoroutinesApi
 class ReduxEngineTest {
 
     private val testIoDispatcher: TestCoroutineDispatcher = TestCoroutineDispatcher()
@@ -103,7 +101,6 @@ class ReduxEngineTest {
 
     @Test
     @ExperimentalCoroutinesApi
-    @ObsoleteCoroutinesApi
     fun dispatch() = runBlockingTest {
         // Pre-conditions
         val results = ArrayList<ExampleState>()
@@ -135,7 +132,6 @@ class ReduxEngineTest {
 
     @Test
     @ExperimentalCoroutinesApi
-    @ObsoleteCoroutinesApi
     fun getStateChanges() = runBlockingTest {
         // Pre-conditions
         val results = ArrayList<ExampleState>()
@@ -152,7 +148,7 @@ class ReduxEngineTest {
 
         // Execution
         val listeningJob = launch {
-            subject.stateChanges.consumeEach {
+            subject.stateChanges.openSubscription().consumeEach {
                 results.add(it)
             }
         }
@@ -168,7 +164,6 @@ class ReduxEngineTest {
 
     @Test
     @ExperimentalCoroutinesApi
-    @ObsoleteCoroutinesApi
     fun `Epic runs post Reducer and receives reduced state`() = runBlockingTest {
         // Pre-conditions
         val initialState = ExampleState(0)
@@ -208,7 +203,6 @@ class ReduxEngineTest {
 
     @Test
     @ExperimentalCoroutinesApi
-    @ObsoleteCoroutinesApi
     fun `Epic maps action to action`() = runBlockingTest {
         // Pre-conditions
         val initialState = ExampleState(0)
