@@ -1,13 +1,10 @@
 package ai.grant.reduxengine
 
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ConflatedBroadcastChannel
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
 interface State
@@ -22,11 +19,13 @@ interface Reducer<S : State> {
     fun reduce(action: Action, state: S): S
 }
 
+@ExperimentalCoroutinesApi
 interface Store<S : State> {
     val stateChanges: ConflatedBroadcastChannel<S>
     fun dispatch(action: Action)
 }
 
+@ExperimentalCoroutinesApi
 class ReduxEngine<S : State>(
     override val stateChanges: ConflatedBroadcastChannel<S>,
     private val reducer: Reducer<S>,
@@ -38,26 +37,29 @@ class ReduxEngine<S : State>(
     override val coroutineContext: CoroutineContext
         get() = mainDispatcher
 
+    @ExperimentalCoroutinesApi
     fun warmUp(initialState: S) {
-        launch(mainDispatcher) {
+        launch {
             stateChanges.send(initialState)
         }
     }
 
+    @ObsoleteCoroutinesApi
     fun listen(action: (S) -> Unit) {
-        launch(mainDispatcher) {
+        launch {
             stateChanges.consumeEach(action)
         }
     }
 
+    @ExperimentalCoroutinesApi
     override fun dispatch(action: Action) {
-        launch(mainDispatcher) {
+        launch {
             stateChanges.send(
                 reducer.reduce(action, stateChanges.value)
             )
         }.invokeOnCompletion { throwable ->
             throwable?.let { throw it }
-            launch(mainDispatcher) {
+            launch {
                 withContext(ioDispatcher) {
                     epic.map(action, stateChanges.value)
                 }.collect {
