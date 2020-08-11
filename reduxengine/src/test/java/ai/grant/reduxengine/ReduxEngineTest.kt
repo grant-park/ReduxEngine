@@ -1,15 +1,20 @@
 package ai.grant.reduxengine
 
-import junit.framework.Assert.assertEquals
-import kotlinx.coroutines.*
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.slot
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.ConflatedBroadcastChannel
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestCoroutineDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runBlockingTest
 import kotlinx.coroutines.test.setMain
+import org.junit.Assert.assertEquals
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -45,7 +50,7 @@ class ReduxEngineTest {
             testMainDispatcher,
             testIoDispatcher
         )
-        val listeningJob = launch(testMainDispatcher) {
+        val listeningJob = launch {
             stateChanges.openSubscription().consumeEach {
                 results.add(it)
             }
@@ -77,7 +82,7 @@ class ReduxEngineTest {
         val nextState = ExampleState(1)
 
         // Execution
-        val listeningJob = launch(testMainDispatcher) {
+        val listeningJob = launch {
             subject.listen {
                 results.add(it)
             }
@@ -105,7 +110,7 @@ class ReduxEngineTest {
             testIoDispatcher
         )
         val initialState = ExampleState(0)
-        val listeningJob = launch(testMainDispatcher) {
+        val listeningJob = launch {
             subject.listen {
                 results.add(it)
             }
@@ -138,7 +143,7 @@ class ReduxEngineTest {
         val nextState = ExampleState(1)
 
         // Execution
-        val listeningJob = launch(testMainDispatcher) {
+        val listeningJob = launch {
             subject.stateChanges.consumeEach {
                 results.add(it)
             }
@@ -150,6 +155,84 @@ class ReduxEngineTest {
         assertEquals(2, results.size)
         assertEquals(initialState, results[0])
         assertEquals(nextState, results[1])
+        listeningJob.cancel()
+    }
+
+    @Test
+    fun `Epic runs post Reducer and receives reduced state`() = runBlockingTest {
+        // Pre-conditions
+        val initialState = ExampleState(0)
+        val results = ArrayList<ExampleState>()
+        val stateChanges: ConflatedBroadcastChannel<ExampleState> = ConflatedBroadcastChannel()
+        val testEpic = mockk<Epic<ExampleState>>()
+        val stateSlot = slot<ExampleState>()
+        val actionSlot = slot<Action>()
+        val subject: ReduxEngine<ExampleState> = ReduxEngine(
+            stateChanges,
+            reducer,
+            testEpic,
+            testMainDispatcher,
+            testIoDispatcher
+        )
+        val listeningJob = launch {
+            subject.listen {
+                results.add(it)
+            }
+        }
+        subject.warmUp(initialState)
+        every { testEpic.map(capture(actionSlot), capture(stateSlot)) } answers {
+            emptyFlow<Action>()
+        }
+
+        // Execution
+        subject.dispatch(ExampleAction.AddAction(2))
+
+        // Post-conditions
+        assertEquals(ExampleAction.AddAction(2), actionSlot.captured)
+        assertEquals(ExampleState(2), stateSlot.captured)
+        assertEquals(2, results.size)
+        assertEquals(initialState, results[0])
+        assertEquals(ExampleState(2), results[1])
+        listeningJob.cancel()
+    }
+
+    @Test
+    fun `Epic maps action to action`() = runBlockingTest {
+        // Pre-conditions
+        val initialState = ExampleState(0)
+        val results = ArrayList<ExampleState>()
+        val stateChanges: ConflatedBroadcastChannel<ExampleState> = ConflatedBroadcastChannel()
+        val testEpic = object: Epic<ExampleState> {
+            override fun map(action: Action, state: ExampleState): Flow<Action> {
+                val actions = ArrayList<Action>()
+                if (action is ExampleAction.AddAction) {
+                    actions.add(ExampleAction.SubtractAction(4))
+                }
+                return actions.asFlow()
+            }
+        }
+        val subject: ReduxEngine<ExampleState> = ReduxEngine(
+            stateChanges,
+            reducer,
+            testEpic,
+            testMainDispatcher,
+            testIoDispatcher
+        )
+        val listeningJob = launch {
+            subject.listen {
+                results.add(it)
+            }
+        }
+        subject.warmUp(initialState)
+
+        // Execution
+        subject.dispatch(ExampleAction.AddAction(2))
+
+        // Post-conditions
+        assertEquals(3, results.size)
+        assertEquals(initialState, results[0])
+        assertEquals(ExampleState(2), results[1])
+        assertEquals(ExampleState(-2), results[2])
         listeningJob.cancel()
     }
 
@@ -189,7 +272,7 @@ class ReduxEngineTest {
 
     class ExampleEpic : Epic<ExampleState> {
         override fun map(action: Action, state: ExampleState): Flow<Action> {
-            return listOf<Action>(NoOpAction).asFlow()
+            return emptyFlow()
         }
     }
 }
