@@ -14,7 +14,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 
-open class ReduxEngineTest {
+class ReduxEngineTest {
 
     private val testIoDispatcher: TestCoroutineDispatcher = TestCoroutineDispatcher()
     private val testMainDispatcher: TestCoroutineDispatcher = TestCoroutineDispatcher()
