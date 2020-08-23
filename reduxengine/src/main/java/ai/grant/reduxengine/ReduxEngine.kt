@@ -37,12 +37,12 @@ fun <S> ReceiveChannel<S>.addTo(collection: MutableCollection<ReceiveChannel<S>>
 
 @ExperimentalCoroutinesApi
 class ReduxEngine<S : State> internal constructor(
-    internal val reducer: Reducer<S>,
-    internal val epic: Epic<S>,
-    internal val job: Job,
-    internal val mainDispatcher: CoroutineDispatcher,
-    internal val ioDispatcher: CoroutineDispatcher,
-    internal val stateChanges: ConflatedBroadcastChannel<S>
+    private val reducer: Reducer<S>,
+    private val epic: Epic<S>,
+    private val job: Job,
+    private val mainDispatcher: CoroutineDispatcher,
+    private val ioDispatcher: CoroutineDispatcher,
+    private val stateChanges: ConflatedBroadcastChannel<S>
 ) : CoroutineScope {
 
     override val coroutineContext: CoroutineContext

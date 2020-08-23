@@ -63,8 +63,8 @@ class ReduxEngineTest {
         subject.listen {
             results.add(it)
         }
-        subject.stateChanges.send(initialState)
-        subject.stateChanges.send(nextState)
+        stateChanges.send(initialState)
+        stateChanges.send(nextState)
 
         // Post-conditions
         assertEquals(2, results.size)
@@ -122,8 +122,8 @@ class ReduxEngineTest {
         subject.listen {
             results.add(it)
         }
-        subject.stateChanges.send(initialState)
-        subject.stateChanges.send(nextState)
+        stateChanges.send(initialState)
+        stateChanges.send(nextState)
 
         // Post-conditions
         assertEquals(2, results.size)
@@ -265,15 +265,14 @@ class ReduxEngineTest {
         val initialState = ExampleState(0)
         val results = ArrayList<ExampleState>()
         val stateChanges: ConflatedBroadcastChannel<ExampleState> = ConflatedBroadcastChannel(initialState)
-        val testEpic = object : Epic<ExampleState> {
-            override fun map(action: Action, state: ExampleState): Flow<Action> {
+        val testEpic =
+            Epic<ExampleState> { action, _ ->
                 val actions = ArrayList<Action>()
                 if (action is ExampleAction.AddAction) {
                     actions.add(ExampleAction.SubtractAction(4))
                 }
-                return actions.asFlow()
+                actions.asFlow()
             }
-        }
         val subject: ReduxEngine<ExampleState> = ReduxEngine(
             reducer,
             testEpic,
