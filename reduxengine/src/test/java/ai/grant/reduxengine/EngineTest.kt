@@ -1,18 +1,28 @@
 package ai.grant.reduxengine
 
+import ai.grant.reduxengine.core.Action
+import ai.grant.reduxengine.core.Engine
+import ai.grant.reduxengine.core.Epic
+import ai.grant.reduxengine.core.Reducer
+import ai.grant.reduxengine.core.State
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.ConflatedBroadcastChannel
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.plus
 import kotlinx.coroutines.test.TestCoroutineDispatcher
+import kotlinx.coroutines.test.TestCoroutineExceptionHandler
+import kotlinx.coroutines.test.TestCoroutineScope
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runBlockingTest
 import kotlinx.coroutines.test.setMain
@@ -21,13 +31,15 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertFails
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 @ExperimentalCoroutinesApi
-class ReduxEngineTest {
+class EngineTest {
 
     private val testIoDispatcher: TestCoroutineDispatcher = TestCoroutineDispatcher()
     private val testMainDispatcher: TestCoroutineDispatcher = TestCoroutineDispatcher()
-    private val testJob: Job = Job()
+    private val testScope: CoroutineScope = TestCoroutineScope(Job())
     private val epic: Epic<ExampleState> = ExampleEpic()
     private val reducer: Reducer<ExampleState> = ExampleReducer()
 
@@ -48,10 +60,10 @@ class ReduxEngineTest {
         // Pre-conditions
         val results = ArrayList<ExampleState>()
         val stateChanges: ConflatedBroadcastChannel<ExampleState> = ConflatedBroadcastChannel()
-        val subject: ReduxEngine<ExampleState> = ReduxEngine(
+        val subject: Engine<ExampleState> = Engine(
             reducer,
             epic,
-            testJob,
+            testScope,
             testMainDispatcher,
             testIoDispatcher,
             stateChanges,
@@ -77,11 +89,12 @@ class ReduxEngineTest {
         // Pre-conditions
         val results = ArrayList<ExampleState>()
         val initialState = ExampleState(0)
-        val stateChanges: ConflatedBroadcastChannel<ExampleState> = ConflatedBroadcastChannel(initialState)
-        val subject: ReduxEngine<ExampleState> = ReduxEngine(
+        val stateChanges: ConflatedBroadcastChannel<ExampleState> =
+            ConflatedBroadcastChannel(initialState)
+        val subject: Engine<ExampleState> = Engine(
             reducer,
             epic,
-            testJob,
+            testScope,
             testMainDispatcher,
             testIoDispatcher,
             stateChanges,
@@ -107,11 +120,12 @@ class ReduxEngineTest {
         // Pre-conditions
         val results = ArrayList<ExampleState>()
         val initialState = ExampleState(0)
-        val stateChanges: ConflatedBroadcastChannel<ExampleState> = ConflatedBroadcastChannel(initialState)
-        val subject: ReduxEngine<ExampleState> = ReduxEngine(
+        val stateChanges: ConflatedBroadcastChannel<ExampleState> =
+            ConflatedBroadcastChannel(initialState)
+        val subject: Engine<ExampleState> = Engine(
             reducer,
             epic,
-            testJob,
+            testScope,
             testMainDispatcher,
             testIoDispatcher,
             stateChanges,
@@ -135,11 +149,12 @@ class ReduxEngineTest {
     fun `Most recent state is given when subscribing`() = runBlockingTest {
         // Pre-conditions
         val initialState = ExampleState(0)
-        val stateChanges: ConflatedBroadcastChannel<ExampleState> = ConflatedBroadcastChannel(initialState)
-        val subject: ReduxEngine<ExampleState> = ReduxEngine(
+        val stateChanges: ConflatedBroadcastChannel<ExampleState> =
+            ConflatedBroadcastChannel(initialState)
+        val subject: Engine<ExampleState> = Engine(
             reducer,
             epic,
-            testJob,
+            testScope,
             testMainDispatcher,
             testIoDispatcher,
             stateChanges,
@@ -159,15 +174,83 @@ class ReduxEngineTest {
     }
 
     @Test
+    fun `Only distinct updates to selected parts of state are listened for`() = runBlockingTest {
+        // Pre-conditions
+        val initialState = ExampleState(0, ExampleSubState(0))
+        val stateChanges: ConflatedBroadcastChannel<ExampleState> =
+            ConflatedBroadcastChannel(initialState)
+        val subject: Engine<ExampleState> = Engine(
+            { action, state ->
+                when (action) {
+                    is ExampleAction.AddAction -> state.copy(
+                        subState = state.subState?.copy(subValue = state.subState.subValue + action.value)
+                    )
+                    is ExampleAction.SubtractAction -> state.copy(
+                        subState = state.subState?.copy(subValue = state.subState.subValue - action.value)
+                    )
+                    else -> state
+                }
+            },
+            epic,
+            testScope,
+            testMainDispatcher,
+            testIoDispatcher,
+            stateChanges,
+        )
+        val results = ArrayList<Int?>()
+
+        // Execution
+        subject.listen({ it.subState }) {
+            results.add(it?.subValue)
+        }
+        subject.dispatch(ExampleAction.AddAction(2))
+        subject.dispatch(ExampleAction.AddAction(2))
+        subject.dispatch(ExampleAction.AddAction(0))
+
+        // Post-conditions
+        assertEquals(listOf(0, 2, 4), results)
+    }
+
+    @Test
+    fun `Only distinct updates to whole state are listened for`() = runBlockingTest {
+        // Pre-conditions
+        val initialState = ExampleState(0)
+        val stateChanges: ConflatedBroadcastChannel<ExampleState> =
+            ConflatedBroadcastChannel(initialState)
+        val subject: Engine<ExampleState> = Engine(
+            reducer,
+            epic,
+            testScope,
+            testMainDispatcher,
+            testIoDispatcher,
+            stateChanges,
+        )
+        val results = ArrayList<Int>()
+
+        // Execution
+        subject.listen {
+            results.add(it.value)
+        }
+        subject.dispatch(ExampleAction.AddAction(2))
+        subject.dispatch(ExampleAction.AddAction(2))
+        subject.dispatch(ExampleAction.AddAction(0))
+        subject.dispatch(ExampleAction.AddAction(0))
+
+        // Post-conditions
+        assertEquals(listOf(0, 2, 4), results)
+    }
+
+    @Test
     fun `No more states received after cancelling subscription`() = runBlockingTest {
         // Pre-conditions
         val results: ArrayList<ExampleState> = ArrayList()
         val initialState = ExampleState(0)
-        val stateChanges: ConflatedBroadcastChannel<ExampleState> = ConflatedBroadcastChannel(initialState)
-        val subject: ReduxEngine<ExampleState> = ReduxEngine(
+        val stateChanges: ConflatedBroadcastChannel<ExampleState> =
+            ConflatedBroadcastChannel(initialState)
+        val subject: Engine<ExampleState> = Engine(
             reducer,
             epic,
-            testJob,
+            testScope,
             testMainDispatcher,
             testIoDispatcher,
             stateChanges,
@@ -192,11 +275,12 @@ class ReduxEngineTest {
         // Pre-conditions
         val results: ArrayList<ExampleState> = ArrayList()
         val initialState = ExampleState(0)
-        val stateChanges: ConflatedBroadcastChannel<ExampleState> = ConflatedBroadcastChannel(initialState)
-        val subject: ReduxEngine<ExampleState> = ReduxEngine(
+        val stateChanges: ConflatedBroadcastChannel<ExampleState> =
+            ConflatedBroadcastChannel(initialState)
+        val subject: Engine<ExampleState> = Engine(
             reducer,
             epic,
-            testJob,
+            testScope,
             testMainDispatcher,
             testIoDispatcher,
             stateChanges,
@@ -211,7 +295,7 @@ class ReduxEngineTest {
                 results.add(it)
             }
         }
-        testJob.cancel()
+        testScope.cancel()
 
         // Post-conditions
         assertFails {
@@ -226,14 +310,15 @@ class ReduxEngineTest {
         // Pre-conditions
         val results = ArrayList<ExampleState>()
         val initialState = ExampleState(0)
-        val stateChanges: ConflatedBroadcastChannel<ExampleState> = ConflatedBroadcastChannel(initialState)
+        val stateChanges: ConflatedBroadcastChannel<ExampleState> =
+            ConflatedBroadcastChannel(initialState)
         val testEpic = mockk<Epic<ExampleState>>()
         val stateSlot = slot<ExampleState>()
         val actionSlot = slot<Action>()
-        val subject: ReduxEngine<ExampleState> = ReduxEngine(
+        val subject: Engine<ExampleState> = Engine(
             reducer,
             testEpic,
-            testJob,
+            testScope,
             testMainDispatcher,
             testIoDispatcher,
             stateChanges,
@@ -264,7 +349,8 @@ class ReduxEngineTest {
         // Pre-conditions
         val initialState = ExampleState(0)
         val results = ArrayList<ExampleState>()
-        val stateChanges: ConflatedBroadcastChannel<ExampleState> = ConflatedBroadcastChannel(initialState)
+        val stateChanges: ConflatedBroadcastChannel<ExampleState> =
+            ConflatedBroadcastChannel(initialState)
         val testEpic =
             Epic<ExampleState> { action, _ ->
                 val actions = ArrayList<Action>()
@@ -273,10 +359,10 @@ class ReduxEngineTest {
                 }
                 actions.asFlow()
             }
-        val subject: ReduxEngine<ExampleState> = ReduxEngine(
+        val subject: Engine<ExampleState> = Engine(
             reducer,
             testEpic,
-            testJob,
+            testScope,
             testMainDispatcher,
             testIoDispatcher,
             stateChanges,
@@ -298,9 +384,73 @@ class ReduxEngineTest {
         listeningJob.cancel()
     }
 
+    @Test
+    fun `Exception thrown in Reducer can be handled`() = runBlockingTest {
+        // Pre-conditions
+        val initialState = ExampleState(0)
+        val stateChanges: ConflatedBroadcastChannel<ExampleState> =
+            ConflatedBroadcastChannel(initialState)
+        val exceptionThrowingReducer: Reducer<ExampleState> = Reducer { _, _ ->
+            throw RuntimeException()
+        }
+        val handler = TestCoroutineExceptionHandler()
+        val subject: Engine<ExampleState> = Engine(
+            exceptionThrowingReducer,
+            epic,
+            testScope + handler,
+            testMainDispatcher,
+            testIoDispatcher,
+            stateChanges,
+        )
+
+        // Execution
+        assertFailsWith<RuntimeException> {
+            subject.dispatch(ExampleAction.AddAction(2))
+        }
+
+        // Post-conditions
+        assertEquals(1, handler.uncaughtExceptions.size)
+        assertTrue { handler.uncaughtExceptions[0] is RuntimeException }
+    }
+
+    @Test
+    fun `Exception thrown in Epic can be handled`() = runBlockingTest {
+        // Pre-conditions
+        val initialState = ExampleState(0)
+        val stateChanges: ConflatedBroadcastChannel<ExampleState> =
+            ConflatedBroadcastChannel(initialState)
+        val reducer: Reducer<ExampleState> = Reducer { _, state ->
+            state
+        }
+        val exceptionThrowingEpic = Epic<ExampleState> { _, _ ->
+            throw RuntimeException()
+        }
+        val handler = TestCoroutineExceptionHandler()
+        val subject: Engine<ExampleState> = Engine(
+            reducer,
+            exceptionThrowingEpic,
+            testScope + handler,
+            testMainDispatcher,
+            testIoDispatcher,
+            stateChanges,
+        )
+
+        // Execution
+        subject.dispatch(ExampleAction.AddAction(2))
+
+        // Pre-conditions
+        assertEquals(1, handler.uncaughtExceptions.size)
+        assertTrue { handler.uncaughtExceptions[0] is java.lang.RuntimeException }
+    }
+
     data class ExampleState(
-        val value: Int
+        val value: Int,
+        val subState: ExampleSubState? = null
     ) : State
+
+    data class ExampleSubState(
+        val subValue: Int
+    )
 
     sealed class ExampleAction : Action {
         data class AddAction(
