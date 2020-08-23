@@ -7,11 +7,17 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.5.3'
+        classpath 'com.android.tools.build:gradle:4.0.1'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
     }
+}
+
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'signing'
 }
 
 allprojects {
@@ -22,6 +28,51 @@ allprojects {
     }
 }
 
-task clean(type: Delete) {
-    delete rootProject.buildDir
+afterEvaluate {
+    task sourceJar(type: Jar) {
+        from sourceSets.main.allJava
+        archiveClassifier = "sources"
+    }
+
+    group = 'ai.grant'
+    version = '1.0.0'
+
+    java {
+        withSourcesJar()
+    }
+
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                from components.java
+                artifact sourceJar
+                pom {
+                    name = "ReduxEngine"
+                    artifactId = "reduxengine"
+                    packaging = "jar"
+                    description = "\t\n" +
+                            "A Kotlin Redux emulator"
+                    url = "https://github.com/grant-park/ReduxEngine"
+                    licenses {
+                        license {
+                            name = "The Apache License, Version 2.0"
+                            url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                        }
+                    }
+                    developers {
+                        developer {
+                            id = "grant-park"
+                            name = "Grant Park"
+                            email = "granthpark@gmail.com"
+                        }
+                    }
+                    scm {
+                        connection = "scm:git:https://github.com/grant-park/ReduxEngine.git"
+                        developerConnection = "scm:git:https://github.com/grant-park/ReduxEngine.git"
+                        url = "https://github.com/grant-park/ReduxEngine.git"
+                    }
+                }
+            }
+        }
+    }
 }
