@@ -7,7 +7,7 @@ implementation 'ai.grant:reduxengine:1.0.0'
 ```
 
 ## Usage
-The following usage instructions include code from the [sample project]("https://github.com/grant-park/ReduxEngineSampleProject.git") as a reference.
+The following usage instructions include code from the [sample project](https://github.com/grant-park/ReduxEngineSampleProject) as a reference.
 
 In your main application:
 
