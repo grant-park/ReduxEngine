@@ -1,5 +1,8 @@
 # ReduxEngine
-A multi-threaded Redux implementation in Kotlin.
+A multi-threaded Redux implementation in Kotlin.  
+
+See [sample project](https://github.com/grant-park/ReduxEngineSampleProject).  
+![](https://github.com/grant-park/ReduxEngineSampleProject/raw/master/demo.gif)
 
 ## Install
 ```groovy
