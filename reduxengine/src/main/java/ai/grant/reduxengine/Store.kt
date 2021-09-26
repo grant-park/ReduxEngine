@@ -16,7 +16,7 @@ import kotlinx.coroutines.channels.ConflatedBroadcastChannel
 import kotlinx.coroutines.channels.ReceiveChannel
 
 @ExperimentalCoroutinesApi
-object INSTANCE {
+object Store {
     private var ENGINE: Engine<out State>? = null
 
     fun <S : State> initialize(
