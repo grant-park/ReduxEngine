@@ -3,7 +3,7 @@ A multi-threaded Redux implementation in Kotlin.
 
 ## Install
 ```groovy
-implementation 'ai.grant:reduxengine:1.0.0'
+implementation 'ai.grant:reduxengine:1.0.1'
 ```
 
 ## Usage
