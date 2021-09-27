@@ -2,6 +2,16 @@
 A multi-threaded Redux implementation in Kotlin.  
 
 ## Install
+In your root `build.gradle`
+```groovy
+allprojects {
+    repositories {
+        ...
+        mavenCentral()
+    }
+}
+```
+In your app `build.gradle`
 ```groovy
 implementation 'ai.grant:reduxengine:1.0.1'
 ```
