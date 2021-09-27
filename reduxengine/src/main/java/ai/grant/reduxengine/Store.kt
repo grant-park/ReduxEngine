@@ -15,6 +15,12 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.channels.ConflatedBroadcastChannel
 import kotlinx.coroutines.channels.ReceiveChannel
 
+/**
+ * This is the singleton that exposes the Redux API.
+ * It is meant to serve as a convenient way of ensuring
+ * only one store is used in a project, although
+ * multiple engines can technically be instantiated.
+ */
 @ExperimentalCoroutinesApi
 object Store {
     private var ENGINE: Engine<out State>? = null
